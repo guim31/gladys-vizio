@@ -1,169 +1,394 @@
 // -----------------------------------------------------------------------------
-// Dashboard widgets (SDK v0.14+, Gladys 5.1+).
+// Dashboard widgets (manifest `widgets`, Gladys 5.1+). The core allows four
+// buttons per widget, so the remote is split in three widgets a user places
+// side by side, each bound to one device (the first one when none is chosen):
 //
-// A widget puts the integration's own data on the Gladys dashboard without a
-// dedicated core widget. The manifest `widgets` field declares its identity
-// (key, label, icon, optional per-instance `settings`); at runtime the
-// integration returns a DECLARATIVE content — `text`, `value`, `gauge`,
-// `status`, `chart`, `card-list`, `image`, `button` — that the core renders
-// with its own theme, dark mode and translations. No HTML, no CSS.
+//   - `remote`: what the device does (state, app or input, volume) and
+//     Power, Volume −, Volume +, Mute;
+//   - `shortcuts`: four favorite apps or inputs, typed by name in the
+//     settings ("Netflix", "HDMI-1", "PS5"); the favorite apps of the
+//     configuration by default (the inputs on a sound bar);
+//   - `keys`: four remote keys chosen in the widget settings (arrows by
+//     default; a second instance for OK, Back, Home, Menu...).
 //
-// Each entry of WIDGETS is keyed by the widget `key` and exposes:
-//   - get(gladys, { settings, language, units, config }): the content,
-//     registered by index.js with `gladys.onWidgetGet(key, ...)`;
-//   - action(gladys, { actionKey, params, settings, config }) (optional): a
-//     tapped `button` carrying an `action`, registered with
-//     `gladys.onWidgetAction`.
-//
-// Check your contents in the tests with `validateWidgetContent` (exported by
-// the SDK, see test/widgets.test.js), or run with DEBUG=gladys-integration-sdk
-// to have the SDK log every violation of the vocabulary and the budget.
+// The current choice is shown by the check-circle icon, never by the style
+// (`primary` is invisible in dark mode, GladysAssistant/Gladys#3153).
 // -----------------------------------------------------------------------------
 
-import {
-  createLogger,
-  DEVICE_FEATURE_CATEGORIES,
-  DEVICE_TRANSPORTS,
-  WIDGET_COLORS,
-} from '@gladysassistant/integration-sdk';
-import { identifyDevice } from './devices/index.js';
-import { weatherStation } from './devices/weatherStation.js';
-import { plug } from './devices/plug.js';
-import { light } from './devices/light.js';
+import { WIDGET_COLORS } from '@gladysassistant/integration-sdk';
+import { deviceName, onScreen, playingText } from './devices.js';
+import { CONTENT_KINDS, WIDGET_KEYS } from './hub.js';
+import { failure, labelled, pick } from './texts.js';
+import { findApp } from './vizio/apps.js';
+import { KEY_ICONS, KEY_LABELS, hasKey } from './vizio/keys.js';
+import { DEVICE_KINDS } from './vizio/model.js';
 
-const logger = createLogger({ name: 'widgets' });
+// Action keys of the buttons: permanent once published (unique within a
+// content, the core drops a button whose key is taken).
+export const ACTIONS = Object.freeze({
+  POWER: 'power',
+  VOLUME_DOWN: 'volume_down',
+  VOLUME_UP: 'volume_up',
+  MUTE: 'mute',
+});
+export const SLOT_COUNT = 4;
+export const KEY_ACTION = (index) => `key_${index}`;
+export const SHORTCUT_ACTION = (index) => `shortcut_${index}`;
 
-// Widget key, as declared in the manifest `widgets` field.
-export const DEMO_STATUS_WIDGET = 'demo_status';
+// Defaults of the `keys` widget settings (mirror the manifest defaults).
+export const DEFAULT_KEYS = ['up', 'down', 'left', 'right'];
 
-// Keys of the `button` actions the demo_status content declares.
-const DEMO_STATUS_ACTIONS = { IDENTIFY_LIGHT: 'identify_light' };
+const ACTIVE_ICON = 'check-circle';
 
-// How the plug transport reads in the status list.
-const TRANSPORT_STATUS = {
-  [DEVICE_TRANSPORTS.LOCAL]: { value: { en: 'Local', fr: 'Locale' }, color: WIDGET_COLORS.SUCCESS },
-  [DEVICE_TRANSPORTS.CLOUD]: { value: { en: 'Cloud', fr: 'Cloud' }, color: WIDGET_COLORS.INFO },
-  [DEVICE_TRANSPORTS.UNREACHABLE]: {
-    value: { en: 'Unreachable', fr: 'Injoignable' },
-    color: WIDGET_COLORS.DANGER,
+export const TEXT = {
+  pick: {
+    en: 'Search for your VIZIO device in the Discovery tab; pair a TV in the configuration.',
+    fr: "Cherchez votre appareil VIZIO dans l'onglet Découverte ; appairez un téléviseur dans la configuration.",
+    de: 'Suche dein VIZIO-Gerät im Tab Erkennung; kopple einen Fernseher in der Konfiguration.',
+    es: 'Busque su dispositivo VIZIO en la pestaña Detección; empareje un televisor en la configuración.',
+  },
+  unknown: {
+    en: 'This device is no longer known: choose another one in the widget settings.',
+    fr: "Cet appareil n'est plus connu : choisissez-en un autre dans les réglages du widget.",
+    de: 'Dieses Gerät ist nicht mehr bekannt: Wähle ein anderes in den Widget-Einstellungen.',
+    es: 'Este dispositivo ya no se conoce: elija otro en la configuración del widget.',
+  },
+  noShortcut: {
+    en: 'Type the names of apps or inputs in the widget settings.',
+    fr: "Saisissez des noms d'applications ou d'entrées dans les réglages du widget.",
+    de: 'Gib Namen von Apps oder Eingängen in den Widget-Einstellungen ein.',
+    es: 'Escriba nombres de aplicaciones o entradas en la configuración del widget.',
+  },
+  notFound: { en: 'Not found', fr: 'Introuvable', de: 'Nicht gefunden', es: 'No encontrado' },
+  on: { en: 'On', fr: 'Allumé', de: 'Ein', es: 'Encendido' },
+  standby: { en: 'Standby', fr: 'En veille', de: 'Standby', es: 'En espera' },
+  asleep: { en: 'Off (Eco)', fr: 'Éteint (Éco)', de: 'Aus (Eco)', es: 'Apagado (Eco)' },
+  error: { en: 'Error', fr: 'Erreur', de: 'Fehler', es: 'Error' },
+  waiting: { en: 'Waiting…', fr: 'En attente…', de: 'Warte…', es: 'Esperando…' },
+  screen: { en: 'Now playing', fr: 'En cours', de: 'Aktuell', es: 'En curso' },
+  volume: { en: 'Volume', fr: 'Volume', de: 'Lautstärke', es: 'Volumen' },
+  muted: { en: 'Muted', fr: 'Coupé', de: 'Stumm', es: 'Silenciado' },
+  turnOn: { en: 'Turn on', fr: 'Allumer', de: 'Einschalten', es: 'Encender' },
+  turnOff: { en: 'Turn off', fr: 'Éteindre', de: 'Ausschalten', es: 'Apagar' },
+  volumeDown: { en: 'Volume −', fr: 'Volume −', de: 'Leiser', es: 'Volumen −' },
+  volumeUp: { en: 'Volume +', fr: 'Volume +', de: 'Lauter', es: 'Volumen +' },
+  mute: { en: 'Mute', fr: 'Muet', de: 'Stumm', es: 'Silenciar' },
+};
+
+// Toasts after a tap (≤ 200 characters).
+export const DONE_TEXT = {
+  en: {
+    turningOn: (name) => `Turning ${name} on…`,
+    turnedOff: (name) => `${name} turned off.`,
+    opened: (name) => `${name} on screen.`,
+  },
+  fr: {
+    turningOn: (name) => `Allumage de ${name}…`,
+    turnedOff: (name) => `${name} éteint.`,
+    opened: (name) => `${name} à l'écran.`,
+  },
+  de: {
+    turningOn: (name) => `${name} wird eingeschaltet…`,
+    turnedOff: (name) => `${name} ausgeschaltet.`,
+    opened: (name) => `${name} auf dem Bildschirm.`,
+  },
+  es: {
+    turningOn: (name) => `Encendiendo ${name}…`,
+    turnedOff: (name) => `${name} apagado.`,
+    opened: (name) => `${name} en pantalla.`,
   },
 };
 
-// A live tile references a feature by its external_id: read it from the
-// discovery payload itself, so the widget and the device never disagree.
-function featureExternalId(gladys, config, blueprint, category) {
-  const device = blueprint.buildDevice(gladys, config);
-  return device.features.find((feature) => feature.category === category).external_id;
+const t = (text, language) => pick(text, language);
+const fit = (text, max) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+const done = (render) =>
+  Object.fromEntries(Object.entries(DONE_TEXT).map(([lang, text]) => [lang, render(text)]));
+
+function message(text, language) {
+  return {
+    ttl_seconds: 300,
+    components: [{ type: 'text', variant: 'body', text: t(text, language) }],
+  };
 }
 
-function plugConnectionStatus(gladys, config) {
-  const { transport, degraded } = plug.transport(gladys, config);
-  const { value, color } = TRANSPORT_STATUS[transport];
-  if (degraded) {
+/** The record a widget shows, or the content to show instead. */
+function recordFor(hub, settings, language) {
+  if (hub.published().length === 0) {
+    return { content: message(TEXT.pick, language) };
+  }
+  const record = hub.view(settings?.device);
+  return record ? { record } : { content: message(TEXT.unknown, language) };
+}
+
+/** The record a widget button acts on. */
+function actionRecord(hub, settings) {
+  const record = hub.view(settings?.device);
+  if (!record) {
+    throw failure(hub.language, hub.published().length === 0 ? 'noDevice' : 'unknownDevice');
+  }
+  return record;
+}
+
+const isOn = (record) => record.snapshot.power === true;
+
+/** The first status row: the device and its state. */
+function deviceRow(record, language) {
+  const label = fit(deviceName(record), 40);
+  if (record.error) {
     return {
-      value: { en: `${value.en} (degraded mode)`, fr: `${value.fr} (mode dégradé)` },
-      color: WIDGET_COLORS.WARNING,
+      label,
+      icon: 'alert-triangle',
+      value: t(TEXT.error, language),
+      color: WIDGET_COLORS.DANGER,
     };
   }
-  return { value, color };
+  if (record.snapshot.reachable === false) {
+    return { label, icon: 'tv', value: t(TEXT.asleep, language), color: WIDGET_COLORS.NEUTRAL };
+  }
+  if (record.snapshot.power === true) {
+    return { label, icon: 'tv', value: t(TEXT.on, language), color: WIDGET_COLORS.SUCCESS };
+  }
+  if (record.snapshot.power === false) {
+    return { label, icon: 'tv', value: t(TEXT.standby, language), color: WIDGET_COLORS.NEUTRAL };
+  }
+  return { label, icon: 'clock', value: t(TEXT.waiting, language), color: WIDGET_COLORS.NEUTRAL };
 }
 
-export const WIDGETS = {
-  [DEMO_STATUS_WIDGET]: {
-    // `settings` holds the per-instance values of the declared `settings`
-    // (none here); `language` and `units` are those of the user viewing the
-    // dashboard, for the values you format yourself. Multi-language objects
-    // (`{ en, fr }`) are picked by the core, like everywhere else.
-    async get(gladys, { config }) {
-      logger.debug(`onWidgetGet <- ${DEMO_STATUS_WIDGET}`);
-      return {
-        // Reload policy: the computed parts below only change with the
-        // config, and index.js nudges the widget on every (re)connection and
-        // config update (see refreshWidgets) — the TTL is just a safety net.
-        ttl_seconds: 300,
-        components: [
-          // Device-bound tiles: LIVE, they follow the published states over
-          // the core's real-time path. No TTL, no nudge involved.
-          {
-            type: 'value',
-            label: { en: 'Temperature', fr: 'Température' },
-            icon: 'thermometer',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              weatherStation,
-              DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR,
-            ),
-          },
-          {
-            type: 'value',
-            label: { en: 'Office plug', fr: 'Prise du bureau' },
-            icon: 'zap',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              plug,
-              DEVICE_FEATURE_CATEGORIES.ENERGY_SENSOR,
-            ),
-          },
-          // Computed rows: what the integration knows that no device feature
-          // carries. Served from the core cache until the TTL or a nudge.
-          {
-            type: 'status',
-            items: [
-              {
-                label: { en: 'Plug connection', fr: 'Connexion de la prise' },
-                icon: 'wifi',
-                ...plugConnectionStatus(gladys, config),
-              },
-              {
-                label: { en: 'Observed location', fr: 'Position observée' },
-                icon: 'map-pin',
-                value: `${config.latitude.toFixed(2)}, ${config.longitude.toFixed(2)}`,
-                color: WIDGET_COLORS.NEUTRAL,
-              },
-            ],
-          },
-          // `params` are declared HERE and sent back as-is: the handler never
-          // receives user input (a dashboard can hang on a public wall).
-          {
-            type: 'button',
-            label: { en: 'Identify the light', fr: 'Identifier la lampe' },
-            icon: 'eye',
-            style: 'secondary',
-            action: {
-              key: DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT,
-              params: { device: light.deviceExternalId(gladys) },
-            },
-          },
-        ],
-      };
-    },
+// --- remote ------------------------------------------------------------------
 
-    // Resolve an optional toast (string or multi-language object, ≤ 200
-    // characters). After a successful action the core drops the cached
-    // content and every open dashboard refetches it: no nudge needed.
-    async action(gladys, { actionKey, params, config }) {
-      logger.info(`onWidgetAction <- ${DEMO_STATUS_WIDGET}.${actionKey}`);
-      if (actionKey === DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT) {
-        return identifyDevice(gladys, params.device, config);
+function remoteContent(record, language) {
+  const items = [deviceRow(record, language)];
+  const { volume, muted } = record.snapshot;
+  const on = isOn(record);
+  if (on) {
+    const playing = playingText(record, language);
+    if (playing) {
+      items.push({
+        label: t(TEXT.screen, language),
+        icon: 'airplay',
+        value: fit(playing, 40),
+        color: WIDGET_COLORS.INFO,
+      });
+    }
+    if (Number.isFinite(volume)) {
+      items.push({
+        label: t(TEXT.volume, language),
+        icon: muted ? 'volume-x' : 'volume-2',
+        value: muted ? t(TEXT.muted, language) : volume,
+        color: muted ? WIDGET_COLORS.WARNING : WIDGET_COLORS.NEUTRAL,
+      });
+    }
+  }
+  return {
+    ttl_seconds: on ? 30 : 120,
+    components: [
+      { type: 'status', items },
+      {
+        type: 'button',
+        label: t(on ? TEXT.turnOff : TEXT.turnOn, language),
+        icon: 'power',
+        style: 'secondary',
+        action: { key: ACTIONS.POWER, params: { on: !on } },
+      },
+      {
+        type: 'button',
+        label: t(TEXT.volumeDown, language),
+        icon: 'volume-1',
+        style: 'secondary',
+        action: { key: ACTIONS.VOLUME_DOWN },
+      },
+      {
+        type: 'button',
+        label: t(TEXT.volumeUp, language),
+        icon: 'volume-2',
+        style: 'secondary',
+        action: { key: ACTIONS.VOLUME_UP },
+      },
+      {
+        type: 'button',
+        label: t(TEXT.mute, language),
+        icon: muted ? ACTIVE_ICON : 'volume-x',
+        style: 'secondary',
+        action: { key: ACTIONS.MUTE },
+      },
+    ],
+  };
+}
+
+const remote = {
+  async get(hub, { settings, language = 'en' }) {
+    const { record, content } = recordFor(hub, settings, language);
+    return content ?? remoteContent(record, language);
+  },
+
+  async action(hub, { actionKey, params = {}, settings }) {
+    const record = actionRecord(hub, settings);
+    const name = deviceName(record);
+    switch (actionKey) {
+      case ACTIONS.POWER: {
+        const on = params.on === true;
+        await hub.setPower(record, on);
+        return { message: done((text) => (on ? text.turningOn(name) : text.turnedOff(name))) };
       }
-      // Throwing acks the action as failed: the message reaches the user.
-      throw new Error(`Unknown widget action: ${actionKey}`);
-    },
+      case ACTIONS.VOLUME_DOWN:
+        await hub.stepVolume(record, -hub.config.volumeStep);
+        return undefined;
+      case ACTIONS.VOLUME_UP:
+        await hub.stepVolume(record, hub.config.volumeStep);
+        return undefined;
+      case ACTIONS.MUTE:
+        await hub.toggleMute(record);
+        return undefined;
+      default:
+        throw new Error(`Unknown action ${actionKey}`);
+    }
   },
 };
 
+// --- shortcuts -------------------------------------------------------------------
+
 /**
- * Freshness nudge: ask the core to re-pull every widget NOW instead of
- * waiting for the content TTL. Call it when you KNOW a computed content
- * changed (here: the config, which drives the plug transport and the observed
- * location) — and after every (re)connection, since the nudges are
- * fire-and-forget: rate-limited core-side to 1 per 10 s per widget, dropped
- * silently while disconnected.
+ * The shortcuts of a widget: the names typed in its settings, resolved to an
+ * input (first) or an app of the catalog (TVs); by default the favorite apps
+ * of the configuration on a TV, the inputs on a sound bar.
+ * @returns {{ shortcuts: Array<{ kind: string, value: string, name: string }>, missing: string[] }}
  */
-export function refreshWidgets(gladys) {
-  for (const key of Object.keys(WIDGETS)) {
-    gladys.requestWidgetRefresh(key);
+export function resolveShortcuts(hub, record, settings = {}) {
+  const typed = Array.from({ length: SLOT_COUNT }, (_, index) =>
+    typeof settings?.[`shortcut_${index + 1}`] === 'string'
+      ? settings[`shortcut_${index + 1}`].trim()
+      : '',
+  ).filter(Boolean);
+  const tv = record.kind === DEVICE_KINDS.TV;
+  if (typed.length === 0) {
+    const shortcuts = tv
+      ? hub.config.favoriteApps.map((name) => ({ kind: CONTENT_KINDS.APP, value: name, name }))
+      : record.inputs.map((input) => ({
+          kind: CONTENT_KINDS.INPUT,
+          value: input.cname,
+          name: input.label,
+        }));
+    return { shortcuts: shortcuts.slice(0, SLOT_COUNT), missing: [] };
   }
+  const shortcuts = [];
+  const missing = [];
+  for (const query of typed) {
+    const input = hub.findInput(record, query);
+    const app = input || !tv ? null : findApp(query);
+    if (input) {
+      shortcuts.push({ kind: CONTENT_KINDS.INPUT, value: input.cname, name: input.label });
+    } else if (app) {
+      shortcuts.push({ kind: CONTENT_KINDS.APP, value: app.name, name: app.name });
+    } else {
+      missing.push(query);
+    }
+  }
+  return { shortcuts, missing };
 }
+
+function isCurrent(record, shortcut) {
+  const screen = onScreen(record, 'en');
+  if (!screen || screen.kind !== shortcut.kind) {
+    return false;
+  }
+  return shortcut.kind === CONTENT_KINDS.APP
+    ? screen.app === shortcut.value
+    : screen.input === shortcut.value;
+}
+
+const shortcutsWidget = {
+  async get(hub, { settings, language = 'en' }) {
+    const { record, content } = recordFor(hub, settings, language);
+    if (content) {
+      return content;
+    }
+    const { shortcuts, missing } = resolveShortcuts(hub, record, settings);
+    const components = [{ type: 'status', items: [deviceRow(record, language)] }];
+    if (shortcuts.length === 0 && missing.length === 0) {
+      components.push({ type: 'text', variant: 'caption', text: t(TEXT.noShortcut, language) });
+    }
+    if (missing.length > 0) {
+      components.push({
+        type: 'text',
+        variant: 'caption',
+        text: fit(labelled(t(TEXT.notFound, language), missing.join(', '), language), 80),
+      });
+    }
+    shortcuts.forEach((shortcut, index) => {
+      components.push({
+        type: 'button',
+        label: fit(shortcut.name, 24),
+        icon: isCurrent(record, shortcut)
+          ? ACTIVE_ICON
+          : shortcut.kind === CONTENT_KINDS.INPUT
+            ? 'log-in'
+            : 'grid',
+        style: 'secondary',
+        action: {
+          key: SHORTCUT_ACTION(index + 1),
+          params: { kind: shortcut.kind, value: shortcut.value },
+        },
+      });
+    });
+    return { ttl_seconds: isOn(record) ? 30 : 300, components };
+  },
+
+  async action(hub, { params = {}, settings }) {
+    const record = actionRecord(hub, settings);
+    const value = String(params.value ?? '');
+    if (params.kind === CONTENT_KINDS.APP) {
+      const app = await hub.openApp(record, value);
+      return app ? { message: done((text) => text.opened(app.name)) } : undefined;
+    }
+    const input = await hub.selectInput(record, value);
+    return { message: done((text) => text.opened(input.label)) };
+  },
+};
+
+// --- keys ----------------------------------------------------------------------
+
+/** The four keys of a `keys` widget, from its settings. */
+export function chosenKeys(settings = {}) {
+  return Array.from({ length: SLOT_COUNT }, (_, index) => {
+    const value = settings?.[`key_${index + 1}`];
+    return KEY_LABELS[value] ? value : DEFAULT_KEYS[index];
+  });
+}
+
+const keys = {
+  async get(hub, { settings, language = 'en' }) {
+    const { record, content } = recordFor(hub, settings, language);
+    if (content) {
+      return content;
+    }
+    return {
+      ttl_seconds: isOn(record) ? 60 : 300,
+      components: [
+        { type: 'status', items: [deviceRow(record, language)] },
+        // A sound bar has a few keys only: the others are not shown.
+        ...chosenKeys(settings)
+          .map((key, index) => ({ key, index }))
+          .filter(({ key }) => hasKey(record.kind, key))
+          .map(({ key, index }) => ({
+            type: 'button',
+            label: t(KEY_LABELS[key], language),
+            icon: KEY_ICONS[key] ?? 'circle',
+            style: 'secondary',
+            action: { key: KEY_ACTION(index + 1), params: { key } },
+          })),
+      ],
+    };
+  },
+
+  async action(hub, { params = {}, settings }) {
+    const record = actionRecord(hub, settings);
+    await hub.sendKey(record, String(params.key ?? ''));
+    return undefined;
+  },
+};
+
+export const WIDGETS = {
+  [WIDGET_KEYS.REMOTE]: remote,
+  [WIDGET_KEYS.SHORTCUTS]: shortcutsWidget,
+  [WIDGET_KEYS.KEYS]: keys,
+};
