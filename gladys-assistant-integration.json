@@ -1,147 +1,606 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "VIZIO SmartCast",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "VIZIO SmartCast TVs and sound bars, locally: power, volume, inputs, apps and remote keys.",
+    "fr": "Téléviseurs et barres de son VIZIO SmartCast en local : marche, volume, entrées, applis, touches.",
+    "de": "VIZIO-SmartCast-Fernseher und -Soundbars lokal: Ein/Aus, Lautstärke, Eingänge, Apps, Tasten.",
+    "es": "Televisores y barras de sonido VIZIO SmartCast en local: encendido, volumen, entradas, apps."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-vizio:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-vizio/main/cover.png",
+  "categories": ["multimedia"],
+  "transports": ["local"],
+  "network_discovery": [
+    {
+      "type": "mdns",
+      "service": "_viziocast._tcp"
+    }
+  ],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
-      "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+      "label": {
+        "en": "Your VIZIO devices",
+        "fr": "Vos appareils VIZIO",
+        "de": "Deine VIZIO-Geräte",
+        "es": "Sus dispositivos VIZIO"
       },
-      "links": [
+      "description": {
+        "en": "SmartCast TVs and sound bars are found on your network. Pair each TV once with the two actions below. Set the TV power mode to Quick Start: in Eco mode, Gladys cannot turn it on.",
+        "fr": "Les téléviseurs et barres de son SmartCast sont trouvés sur votre réseau. Appairez chaque téléviseur une fois avec les deux actions ci-dessous. Réglez le mode d'alimentation du téléviseur sur Démarrage rapide : en mode Éco, Gladys ne peut pas l'allumer.",
+        "de": "SmartCast-Fernseher und -Soundbars werden in deinem Netzwerk gefunden. Kopple jeden Fernseher einmal mit den beiden Aktionen unten. Stelle den Energiemodus des Fernsehers auf Schnellstart: Im Eco-Modus kann Gladys ihn nicht einschalten.",
+        "es": "Los televisores y barras de sonido SmartCast se encuentran en su red. Empareje cada televisor una vez con las dos acciones de abajo. Ajuste el modo de energía del televisor en Inicio rápido: en modo Eco, Gladys no puede encenderlo."
+      }
+    },
+    {
+      "key": "hosts",
+      "type": "string",
+      "label": {
+        "en": "Addresses (optional)",
+        "fr": "Adresses (facultatif)",
+        "de": "Adressen (optional)",
+        "es": "Direcciones (opcional)"
+      },
+      "description": {
+        "en": "Only for a device the search does not find: its IP address, separated by commas. Give it a fixed address in your router.",
+        "fr": "Seulement pour un appareil que la recherche ne trouve pas : son adresse IP, séparées par des virgules. Fixez-la dans votre box ou routeur.",
+        "de": "Nur für ein Gerät, das die Suche nicht findet: seine IP-Adresse, durch Kommas getrennt. Lege sie in deinem Router fest.",
+        "es": "Solo para un dispositivo que la búsqueda no encuentra: su dirección IP, separadas por comas. Fíjela en su router."
+      },
+      "placeholder": {
+        "en": "e.g. 192.168.1.30, 192.168.1.31",
+        "fr": "ex. 192.168.1.30, 192.168.1.31",
+        "de": "z. B. 192.168.1.30, 192.168.1.31",
+        "es": "p. ej. 192.168.1.30, 192.168.1.31"
+      },
+      "required": false,
+      "default": ""
+    },
+    {
+      "key": "favorite_apps",
+      "type": "string",
+      "label": {
+        "en": "Favorite apps",
+        "fr": "Applications favorites",
+        "de": "Lieblings-Apps",
+        "es": "Aplicaciones favoritas"
+      },
+      "description": {
+        "en": "The apps of the App list of each TV and of the shortcuts widget, by their SmartCast name, separated by commas (12 at most).",
+        "fr": "Les applications de la liste Application de chaque téléviseur et du widget de raccourcis, par leur nom SmartCast, séparées par des virgules (12 au plus).",
+        "de": "Die Apps der App-Liste jedes Fernsehers und des Verknüpfungs-Widgets, mit ihrem SmartCast-Namen, durch Kommas getrennt (höchstens 12).",
+        "es": "Las aplicaciones de la lista Aplicación de cada televisor y del widget de accesos directos, por su nombre SmartCast, separadas por comas (12 como máximo)."
+      },
+      "placeholder": {
+        "en": "e.g. Netflix, YouTube, Prime Video",
+        "fr": "ex. Netflix, YouTube, Prime Video",
+        "de": "z. B. Netflix, YouTube, Prime Video",
+        "es": "p. ej. Netflix, YouTube, Prime Video"
+      },
+      "required": false,
+      "default": "Netflix, YouTube, Prime Video, Disney+, Hulu, Apple TV+"
+    },
+    {
+      "key": "options",
+      "type": "section",
+      "label": {
+        "en": "Options",
+        "fr": "Options",
+        "de": "Optionen",
+        "es": "Opciones"
+      }
+    },
+    {
+      "key": "poll_interval",
+      "type": "select",
+      "label": {
+        "en": "Refresh interval",
+        "fr": "Intervalle de rafraîchissement",
+        "de": "Aktualisierungsintervall",
+        "es": "Intervalo de actualización"
+      },
+      "description": {
+        "en": "How often the devices are read. A device in Eco mode is not read.",
+        "fr": "Fréquence de lecture des appareils. Un appareil en mode Éco n'est pas lu.",
+        "de": "Wie oft die Geräte gelesen werden. Ein Gerät im Eco-Modus wird nicht gelesen.",
+        "es": "Con qué frecuencia se leen los dispositivos. Un dispositivo en modo Eco no se lee."
+      },
+      "required": false,
+      "default": "10",
+      "options": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "value": "10",
+          "label": {
+            "en": "10 s",
+            "fr": "10 s",
+            "de": "10 s",
+            "es": "10 s"
+          }
+        },
+        {
+          "value": "15",
+          "label": {
+            "en": "15 s",
+            "fr": "15 s",
+            "de": "15 s",
+            "es": "15 s"
+          }
+        },
+        {
+          "value": "30",
+          "label": {
+            "en": "30 s",
+            "fr": "30 s",
+            "de": "30 s",
+            "es": "30 s"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
-    },
-    {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
+      "key": "volume_step",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "label": {
+        "en": "Volume step",
+        "fr": "Pas du volume",
+        "de": "Lautstärkeschritt",
+        "es": "Paso de volumen"
+      },
+      "description": {
+        "en": "Change of each press on Volume + and Volume −.",
+        "fr": "Variation de chaque appui sur Volume + et Volume −.",
+        "de": "Änderung pro Druck auf Lauter und Leiser.",
+        "es": "Cambio de cada pulsación de Volumen + y Volumen −."
+      },
       "required": false,
-      "default": "celsius",
+      "default": "2",
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "1",
+          "label": {
+            "en": "1",
+            "fr": "1",
+            "de": "1",
+            "es": "1"
+          }
+        },
+        {
+          "value": "2",
+          "label": {
+            "en": "2",
+            "fr": "2",
+            "de": "2",
+            "es": "2"
+          }
+        },
+        {
+          "value": "5",
+          "label": {
+            "en": "5",
+            "fr": "5",
+            "de": "5",
+            "es": "5"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "language",
+      "type": "select",
+      "label": {
+        "en": "Language of the feature names",
+        "fr": "Langue des noms de fonctionnalités",
+        "de": "Sprache der Funktionsnamen",
+        "es": "Idioma de los nombres de funciones"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Names given to the features when a device is added, and texts of the lists and scene events.",
+        "fr": "Noms donnés aux fonctionnalités à l'ajout d'un appareil, et textes des listes et des événements de scène.",
+        "de": "Namen der Funktionen beim Hinzufügen eines Geräts sowie Texte der Listen und Szenenereignisse.",
+        "es": "Nombres de las funciones al añadir un dispositivo, y textos de las listas y eventos de escena."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
+      "key": "start_pairing",
+      "label": {
+        "en": "Start pairing",
+        "fr": "Démarrer l'appairage",
+        "de": "Kopplung starten",
+        "es": "Iniciar el emparejamiento"
+      },
+      "description": {
+        "en": "The TV, turned on, shows a 4-digit PIN. The address is needed only with several TVs to pair.",
+        "fr": "Le téléviseur, allumé, affiche un code PIN à 4 chiffres. L'adresse n'est utile qu'avec plusieurs téléviseurs à appairer.",
+        "de": "Der eingeschaltete Fernseher zeigt eine 4-stellige PIN. Die Adresse ist nur bei mehreren zu koppelnden Fernsehern nötig.",
+        "es": "El televisor, encendido, muestra un PIN de 4 dígitos. La dirección solo hace falta con varios televisores por emparejar."
+      },
+      "timeout_seconds": 30,
       "fields": [
         {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "key": "address",
+          "type": "string",
+          "label": {
+            "en": "TV address (optional)",
+            "fr": "Adresse du téléviseur (facultatif)",
+            "de": "Adresse des Fernsehers (optional)",
+            "es": "Dirección del televisor (opcional)"
+          },
+          "placeholder": {
+            "en": "e.g. 192.168.1.30",
+            "fr": "ex. 192.168.1.30",
+            "de": "z. B. 192.168.1.30",
+            "es": "p. ej. 192.168.1.30"
+          }
         }
       ]
+    },
+    {
+      "key": "finish_pairing",
+      "label": {
+        "en": "Enter the PIN",
+        "fr": "Saisir le code PIN",
+        "de": "PIN eingeben",
+        "es": "Introducir el PIN"
+      },
+      "description": {
+        "en": "The 4 digits shown on the TV, within 5 minutes. The TV then gives Gladys a token, kept by the integration.",
+        "fr": "Les 4 chiffres affichés sur le téléviseur, dans les 5 minutes. Le téléviseur donne alors un jeton à Gladys, gardé par l'intégration.",
+        "de": "Die 4 am Fernseher angezeigten Ziffern, innerhalb von 5 Minuten. Der Fernseher gibt Gladys dann ein Token, das die Integration aufbewahrt.",
+        "es": "Los 4 dígitos que muestra el televisor, en 5 minutos. El televisor da entonces un token a Gladys, que guarda la integración."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "pin",
+          "type": "string",
+          "label": {
+            "en": "PIN shown on the TV",
+            "fr": "Code PIN affiché sur le téléviseur",
+            "de": "Am Fernseher angezeigte PIN",
+            "es": "PIN que muestra el televisor"
+          },
+          "placeholder": {
+            "en": "e.g. 1234",
+            "fr": "ex. 1234",
+            "de": "z. B. 1234",
+            "es": "p. ej. 1234"
+          }
+        },
+        {
+          "key": "address",
+          "type": "string",
+          "label": {
+            "en": "TV address (optional)",
+            "fr": "Adresse du téléviseur (facultatif)",
+            "de": "Adresse des Fernsehers (optional)",
+            "es": "Dirección del televisor (opcional)"
+          },
+          "placeholder": {
+            "en": "e.g. 192.168.1.30",
+            "fr": "ex. 192.168.1.30",
+            "de": "z. B. 192.168.1.30",
+            "es": "p. ej. 192.168.1.30"
+          }
+        }
+      ]
+    },
+    {
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion",
+        "de": "Verbindung testen",
+        "es": "Probar la conexión"
+      },
+      "description": {
+        "en": "Searches the network, reads every device now and reports what it finds.",
+        "fr": "Cherche sur le réseau, lit chaque appareil maintenant et indique ce qu’il trouve.",
+        "de": "Durchsucht das Netzwerk, liest jedes Gerät sofort und meldet, was es findet.",
+        "es": "Busca en la red, lee cada dispositivo ahora e indica lo que encuentra."
+      },
+      "timeout_seconds": 60
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "content_changed",
+      "label": {
+        "en": "TV: app or input changed",
+        "fr": "TV : application ou entrée changée",
+        "de": "TV: App oder Eingang gewechselt",
+        "es": "TV: aplicación o entrada cambiada"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "Something new in front, turning on included: an app (Netflix…) or an input (a console over HDMI).",
+        "fr": "Quelque chose de nouveau à l’écran, allumage compris : une application (Netflix…) ou une entrée (une console en HDMI).",
+        "de": "Etwas Neues im Vordergrund, Einschalten inbegriffen: eine App (Netflix…) oder ein Eingang (eine Konsole per HDMI).",
+        "es": "Algo nuevo en pantalla, encendido incluido: una aplicación (Netflix…) o una entrada (una consola por HDMI)."
       },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
+          "label": {
+            "en": "Device (empty: any)",
+            "fr": "Appareil (vide : tous)",
+            "de": "Gerät (leer: alle)",
+            "es": "Dispositivo (vacío: todos)"
+          },
+          "required": false
         },
         {
-          "key": "target",
+          "key": "kind",
           "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
+          "label": {
+            "en": "Now in front",
+            "fr": "Désormais au premier plan",
+            "de": "Jetzt im Vordergrund",
+            "es": "Ahora en primer plano"
+          },
           "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
+            {
+              "value": "app",
+              "label": {
+                "en": "App",
+                "fr": "Application",
+                "de": "App",
+                "es": "Aplicación"
+              }
+            },
+            {
+              "value": "input",
+              "label": {
+                "en": "Input",
+                "fr": "Entrée",
+                "de": "Eingang",
+                "es": "Entrada"
+              }
+            }
           ]
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name, exactly as in \"Now playing\"",
+            "fr": "Nom, exactement comme dans « En cours »",
+            "de": "Name, genau wie in „Aktuelle Wiedergabe“",
+            "es": "Nombre, exactamente como en «En reproducción»"
+          },
+          "placeholder": {
+            "en": "e.g. Netflix, HDMI-1, PS5",
+            "fr": "ex. Netflix, HDMI-1, PS5",
+            "de": "z. B. Netflix, HDMI-1, PS5",
+            "es": "p. ej. Netflix, HDMI-1, PS5"
+          }
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "tv",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          }
+        },
+        {
+          "key": "kind",
+          "type": "string",
+          "label": {
+            "en": "Kind (app, input)",
+            "fr": "Type (app, input)",
+            "de": "Art (app, input)",
+            "es": "Tipo (app, input)"
+          }
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "App or input name",
+            "fr": "Nom de l'application ou de l'entrée",
+            "de": "Name der App oder des Eingangs",
+            "es": "Nombre de la aplicación o de la entrada"
+          }
         }
       ]
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
+      "key": "open_app",
+      "label": {
+        "en": "Open an app on the TV",
+        "fr": "Ouvrir une application sur le téléviseur",
+        "de": "App auf dem Fernseher öffnen",
+        "es": "Abrir una aplicación en el televisor"
+      },
       "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+        "en": "By its SmartCast name (Netflix, Prime Video…). Turns the TV on first if needed.",
+        "fr": "Par son nom SmartCast (Netflix, Prime Video…). Allume d’abord le téléviseur si besoin.",
+        "de": "Über ihren SmartCast-Namen (Netflix, Prime Video…). Schaltet den Fernseher bei Bedarf zuerst ein.",
+        "es": "Por su nombre SmartCast (Netflix, Prime Video…). Enciende primero el televisor si hace falta."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: the only device.",
+            "fr": "Vide : l'unique appareil.",
+            "de": "Leer: das einzige Gerät.",
+            "es": "Vacío: el único dispositivo."
+          },
+          "required": false
+        },
+        {
+          "key": "app",
+          "type": "string",
+          "label": {
+            "en": "App",
+            "fr": "Application",
+            "de": "App",
+            "es": "Aplicación"
+          },
+          "required": true,
+          "placeholder": {
+            "en": "e.g. Netflix",
+            "fr": "ex. Netflix",
+            "de": "z. B. Netflix",
+            "es": "p. ej. Netflix"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "key": "app",
+          "type": "string",
+          "label": {
+            "en": "App opened",
+            "fr": "Application ouverte",
+            "de": "Geöffnete App",
+            "es": "Aplicación abierta"
+          }
+        }
+      ]
+    },
+    {
+      "key": "select_input",
+      "label": {
+        "en": "Choose an input",
+        "fr": "Choisir une entrée",
+        "de": "Eingang wählen",
+        "es": "Elegir una entrada"
+      },
+      "description": {
+        "en": "By its name, or the name set on the TV (HDMI-1, PS5). Turns the device on first if needed.",
+        "fr": "Par son nom, ou le nom réglé sur le téléviseur (HDMI-1, PS5). Allume d'abord l'appareil si besoin.",
+        "de": "Über seinen Namen oder den am Fernseher gesetzten Namen (HDMI-1, PS5). Schaltet das Gerät bei Bedarf zuerst ein.",
+        "es": "Por su nombre, o el nombre definido en el televisor (HDMI-1, PS5). Enciende primero el dispositivo si hace falta."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: the only device.",
+            "fr": "Vide : l'unique appareil.",
+            "de": "Leer: das einzige Gerät.",
+            "es": "Vacío: el único dispositivo."
+          },
+          "required": false
+        },
+        {
+          "key": "input",
+          "type": "string",
+          "label": {
+            "en": "Input",
+            "fr": "Entrée",
+            "de": "Eingang",
+            "es": "Entrada"
+          },
+          "required": true,
+          "placeholder": {
+            "en": "e.g. HDMI-1",
+            "fr": "ex. HDMI-1",
+            "de": "z. B. HDMI-1",
+            "es": "p. ej. HDMI-1"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "key": "input",
+          "type": "string",
+          "label": {
+            "en": "Input chosen",
+            "fr": "Entrée choisie",
+            "de": "Gewählter Eingang",
+            "es": "Entrada elegida"
+          }
+        }
+      ]
+    },
+    {
+      "key": "send_key",
+      "label": {
+        "en": "Send a remote control key",
+        "fr": "Envoyer une touche de télécommande",
+        "de": "Fernbedienungstaste senden",
+        "es": "Enviar una tecla del mando"
+      },
+      "description": {
+        "en": "As if pressed on the remote, one or more times.",
+        "fr": "Comme un appui sur la télécommande, une ou plusieurs fois.",
+        "de": "Wie ein Druck auf der Fernbedienung, ein- oder mehrmals.",
+        "es": "Como una pulsación en el mando, una o varias veces."
       },
       "timeout_seconds": 15,
       "fields": [
@@ -149,29 +608,1203 @@
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: the only device.",
+            "fr": "Vide : l'unique appareil.",
+            "de": "Leer: das einzige Gerät.",
+            "es": "Vacío: el único dispositivo."
+          },
+          "required": false
+        },
+        {
+          "key": "key",
+          "type": "select",
+          "label": {
+            "en": "Key",
+            "fr": "Touche",
+            "de": "Taste",
+            "es": "Tecla"
+          },
+          "required": true,
+          "options": [
+            {
+              "value": "up",
+              "label": {
+                "en": "Up",
+                "fr": "Haut",
+                "de": "Hoch",
+                "es": "Arriba"
+              }
+            },
+            {
+              "value": "down",
+              "label": {
+                "en": "Down",
+                "fr": "Bas",
+                "de": "Runter",
+                "es": "Abajo"
+              }
+            },
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "fr": "Gauche",
+                "de": "Links",
+                "es": "Izquierda"
+              }
+            },
+            {
+              "value": "right",
+              "label": {
+                "en": "Right",
+                "fr": "Droite",
+                "de": "Rechts",
+                "es": "Derecha"
+              }
+            },
+            {
+              "value": "ok",
+              "label": {
+                "en": "OK",
+                "fr": "OK",
+                "de": "OK",
+                "es": "OK"
+              }
+            },
+            {
+              "value": "back",
+              "label": {
+                "en": "Back",
+                "fr": "Retour",
+                "de": "Zurück",
+                "es": "Volver"
+              }
+            },
+            {
+              "value": "home",
+              "label": {
+                "en": "Home",
+                "fr": "Accueil",
+                "de": "Home",
+                "es": "Inicio"
+              }
+            },
+            {
+              "value": "menu",
+              "label": {
+                "en": "Menu",
+                "fr": "Menu",
+                "de": "Menü",
+                "es": "Menú"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "play",
+              "label": {
+                "en": "Play",
+                "fr": "Lecture",
+                "de": "Abspielen",
+                "es": "Reproducir"
+              }
+            },
+            {
+              "value": "pause",
+              "label": {
+                "en": "Pause",
+                "fr": "Pause",
+                "de": "Pause",
+                "es": "Pausa"
+              }
+            },
+            {
+              "value": "rewind",
+              "label": {
+                "en": "Rewind",
+                "fr": "Retour rapide",
+                "de": "Zurückspulen",
+                "es": "Retroceder"
+              }
+            },
+            {
+              "value": "forward",
+              "label": {
+                "en": "Fast forward",
+                "fr": "Avance rapide",
+                "de": "Vorspulen",
+                "es": "Avanzar"
+              }
+            },
+            {
+              "value": "volume_up",
+              "label": {
+                "en": "Volume +",
+                "fr": "Volume +",
+                "de": "Lauter",
+                "es": "Volumen +"
+              }
+            },
+            {
+              "value": "volume_down",
+              "label": {
+                "en": "Volume −",
+                "fr": "Volume −",
+                "de": "Leiser",
+                "es": "Volumen −"
+              }
+            },
+            {
+              "value": "mute",
+              "label": {
+                "en": "Mute",
+                "fr": "Muet",
+                "de": "Stumm",
+                "es": "Silenciar"
+              }
+            },
+            {
+              "value": "channel_up",
+              "label": {
+                "en": "Channel +",
+                "fr": "Chaîne +",
+                "de": "Kanal +",
+                "es": "Canal +"
+              }
+            },
+            {
+              "value": "channel_down",
+              "label": {
+                "en": "Channel −",
+                "fr": "Chaîne −",
+                "de": "Kanal −",
+                "es": "Canal −"
+              }
+            },
+            {
+              "value": "channel_previous",
+              "label": {
+                "en": "Last channel",
+                "fr": "Chaîne précédente",
+                "de": "Letzter Kanal",
+                "es": "Canal anterior"
+              }
+            },
+            {
+              "value": "input_next",
+              "label": {
+                "en": "Next input",
+                "fr": "Entrée suivante",
+                "de": "Nächster Eingang",
+                "es": "Entrada siguiente"
+              }
+            }
+          ]
+        },
+        {
+          "key": "repeat",
+          "type": "number",
+          "label": {
+            "en": "Presses",
+            "fr": "Appuis",
+            "de": "Drücke",
+            "es": "Pulsaciones"
+          },
+          "required": false,
+          "default": 1,
+          "min": 1,
+          "max": 10
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "presses",
+          "type": "number",
+          "label": {
+            "en": "Presses sent",
+            "fr": "Appuis envoyés",
+            "de": "Gesendete Drücke",
+            "es": "Pulsaciones enviadas"
+          }
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "remote",
+      "label": {
+        "en": "VIZIO remote",
+        "fr": "Télécommande VIZIO",
+        "de": "VIZIO-Fernbedienung",
+        "es": "Mando VIZIO"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "State, app or input, volume, and Power, Volume and Mute buttons.",
+        "fr": "État, application ou entrée, volume, et boutons marche, volume et muet.",
+        "de": "Status, App oder Eingang, Lautstärke sowie Ein-, Lautstärke- und Stumm-Tasten.",
+        "es": "Estado, aplicación o entrada, volumen y botones de encendido, volumen y silencio."
+      },
+      "icon": "tv",
+      "action_timeout_seconds": 30,
+      "settings": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: the first device.",
+            "fr": "Vide : le premier appareil.",
+            "de": "Leer: das erste Gerät.",
+            "es": "Vacío: el primer dispositivo."
+          },
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "shortcuts",
+      "label": {
+        "en": "VIZIO shortcuts",
+        "fr": "Raccourcis VIZIO",
+        "de": "VIZIO-Verknüpfungen",
+        "es": "Accesos VIZIO"
+      },
+      "description": {
+        "en": "Four favorite apps or inputs, opened in one tap (turns the TV on).",
+        "fr": "Quatre applications ou entrées favorites, ouvertes d’un appui (allume le téléviseur).",
+        "de": "Vier Lieblings-Apps oder -Eingänge, mit einem Tippen geöffnet (schaltet den Fernseher ein).",
+        "es": "Cuatro aplicaciones o entradas favoritas, abiertas con un toque (enciende el televisor)."
+      },
+      "icon": "star",
+      "action_timeout_seconds": 30,
+      "settings": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: the first device.",
+            "fr": "Vide : le premier appareil.",
+            "de": "Leer: das erste Gerät.",
+            "es": "Vacío: el primer dispositivo."
+          },
+          "required": false
+        },
+        {
+          "key": "shortcut_1",
+          "type": "string",
+          "label": {
+            "en": "Shortcut 1",
+            "fr": "Raccourci 1",
+            "de": "Verknüpfung 1",
+            "es": "Acceso 1"
+          },
+          "description": {
+            "en": "An app or an input, by name. All empty: the favorite apps.",
+            "fr": "Une application ou une entrée, par son nom. Tous vides : les applications favorites.",
+            "de": "Eine App oder ein Eingang, mit Namen. Alle leer: die Lieblings-Apps.",
+            "es": "Una aplicación o una entrada, por su nombre. Todos vacíos: las aplicaciones favoritas."
+          },
+          "placeholder": {
+            "en": "e.g. Netflix",
+            "fr": "ex. Netflix",
+            "de": "z. B. Netflix",
+            "es": "p. ej. Netflix"
+          },
+          "required": false
+        },
+        {
+          "key": "shortcut_2",
+          "type": "string",
+          "label": {
+            "en": "Shortcut 2",
+            "fr": "Raccourci 2",
+            "de": "Verknüpfung 2",
+            "es": "Acceso 2"
+          },
+          "placeholder": {
+            "en": "e.g. YouTube",
+            "fr": "ex. YouTube",
+            "de": "z. B. YouTube",
+            "es": "p. ej. YouTube"
+          },
+          "required": false
+        },
+        {
+          "key": "shortcut_3",
+          "type": "string",
+          "label": {
+            "en": "Shortcut 3",
+            "fr": "Raccourci 3",
+            "de": "Verknüpfung 3",
+            "es": "Acceso 3"
+          },
+          "placeholder": {
+            "en": "e.g. HDMI-1",
+            "fr": "ex. HDMI-1",
+            "de": "z. B. HDMI-1",
+            "es": "p. ej. HDMI-1"
+          },
+          "required": false
+        },
+        {
+          "key": "shortcut_4",
+          "type": "string",
+          "label": {
+            "en": "Shortcut 4",
+            "fr": "Raccourci 4",
+            "de": "Verknüpfung 4",
+            "es": "Acceso 4"
+          },
+          "placeholder": {
+            "en": "e.g. PS5",
+            "fr": "ex. PS5",
+            "de": "z. B. PS5",
+            "es": "p. ej. PS5"
+          },
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "keys",
+      "label": {
+        "en": "VIZIO keys",
+        "fr": "Touches VIZIO",
+        "de": "VIZIO-Tasten",
+        "es": "Teclas VIZIO"
+      },
+      "description": {
+        "en": "Four remote keys of your choice: arrows, OK, Back, Home…",
+        "fr": "Quatre touches de télécommande au choix : flèches, OK, retour, accueil…",
+        "de": "Vier Fernbedienungstasten nach Wahl: Pfeile, OK, Zurück, Home…",
+        "es": "Cuatro teclas del mando a elegir: flechas, OK, volver, inicio…"
+      },
+      "icon": "move",
+      "action_timeout_seconds": 15,
+      "settings": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
+          },
+          "description": {
+            "en": "Empty: the first device.",
+            "fr": "Vide : le premier appareil.",
+            "de": "Leer: das erste Gerät.",
+            "es": "Vacío: el primer dispositivo."
+          },
+          "required": false
+        },
+        {
+          "key": "key_1",
+          "type": "select",
+          "label": {
+            "en": "Button 1",
+            "fr": "Bouton 1",
+            "de": "Taste 1",
+            "es": "Botón 1"
+          },
+          "required": false,
+          "default": "up",
+          "options": [
+            {
+              "value": "up",
+              "label": {
+                "en": "Up",
+                "fr": "Haut",
+                "de": "Hoch",
+                "es": "Arriba"
+              }
+            },
+            {
+              "value": "down",
+              "label": {
+                "en": "Down",
+                "fr": "Bas",
+                "de": "Runter",
+                "es": "Abajo"
+              }
+            },
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "fr": "Gauche",
+                "de": "Links",
+                "es": "Izquierda"
+              }
+            },
+            {
+              "value": "right",
+              "label": {
+                "en": "Right",
+                "fr": "Droite",
+                "de": "Rechts",
+                "es": "Derecha"
+              }
+            },
+            {
+              "value": "ok",
+              "label": {
+                "en": "OK",
+                "fr": "OK",
+                "de": "OK",
+                "es": "OK"
+              }
+            },
+            {
+              "value": "back",
+              "label": {
+                "en": "Back",
+                "fr": "Retour",
+                "de": "Zurück",
+                "es": "Volver"
+              }
+            },
+            {
+              "value": "home",
+              "label": {
+                "en": "Home",
+                "fr": "Accueil",
+                "de": "Home",
+                "es": "Inicio"
+              }
+            },
+            {
+              "value": "menu",
+              "label": {
+                "en": "Menu",
+                "fr": "Menu",
+                "de": "Menü",
+                "es": "Menú"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "play",
+              "label": {
+                "en": "Play",
+                "fr": "Lecture",
+                "de": "Abspielen",
+                "es": "Reproducir"
+              }
+            },
+            {
+              "value": "pause",
+              "label": {
+                "en": "Pause",
+                "fr": "Pause",
+                "de": "Pause",
+                "es": "Pausa"
+              }
+            },
+            {
+              "value": "rewind",
+              "label": {
+                "en": "Rewind",
+                "fr": "Retour rapide",
+                "de": "Zurückspulen",
+                "es": "Retroceder"
+              }
+            },
+            {
+              "value": "forward",
+              "label": {
+                "en": "Fast forward",
+                "fr": "Avance rapide",
+                "de": "Vorspulen",
+                "es": "Avanzar"
+              }
+            },
+            {
+              "value": "volume_up",
+              "label": {
+                "en": "Volume +",
+                "fr": "Volume +",
+                "de": "Lauter",
+                "es": "Volumen +"
+              }
+            },
+            {
+              "value": "volume_down",
+              "label": {
+                "en": "Volume −",
+                "fr": "Volume −",
+                "de": "Leiser",
+                "es": "Volumen −"
+              }
+            },
+            {
+              "value": "mute",
+              "label": {
+                "en": "Mute",
+                "fr": "Muet",
+                "de": "Stumm",
+                "es": "Silenciar"
+              }
+            },
+            {
+              "value": "channel_up",
+              "label": {
+                "en": "Channel +",
+                "fr": "Chaîne +",
+                "de": "Kanal +",
+                "es": "Canal +"
+              }
+            },
+            {
+              "value": "channel_down",
+              "label": {
+                "en": "Channel −",
+                "fr": "Chaîne −",
+                "de": "Kanal −",
+                "es": "Canal −"
+              }
+            },
+            {
+              "value": "channel_previous",
+              "label": {
+                "en": "Last channel",
+                "fr": "Chaîne précédente",
+                "de": "Letzter Kanal",
+                "es": "Canal anterior"
+              }
+            },
+            {
+              "value": "input_next",
+              "label": {
+                "en": "Next input",
+                "fr": "Entrée suivante",
+                "de": "Nächster Eingang",
+                "es": "Entrada siguiente"
+              }
+            }
+          ]
+        },
+        {
+          "key": "key_2",
+          "type": "select",
+          "label": {
+            "en": "Button 2",
+            "fr": "Bouton 2",
+            "de": "Taste 2",
+            "es": "Botón 2"
+          },
+          "required": false,
+          "default": "down",
+          "options": [
+            {
+              "value": "up",
+              "label": {
+                "en": "Up",
+                "fr": "Haut",
+                "de": "Hoch",
+                "es": "Arriba"
+              }
+            },
+            {
+              "value": "down",
+              "label": {
+                "en": "Down",
+                "fr": "Bas",
+                "de": "Runter",
+                "es": "Abajo"
+              }
+            },
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "fr": "Gauche",
+                "de": "Links",
+                "es": "Izquierda"
+              }
+            },
+            {
+              "value": "right",
+              "label": {
+                "en": "Right",
+                "fr": "Droite",
+                "de": "Rechts",
+                "es": "Derecha"
+              }
+            },
+            {
+              "value": "ok",
+              "label": {
+                "en": "OK",
+                "fr": "OK",
+                "de": "OK",
+                "es": "OK"
+              }
+            },
+            {
+              "value": "back",
+              "label": {
+                "en": "Back",
+                "fr": "Retour",
+                "de": "Zurück",
+                "es": "Volver"
+              }
+            },
+            {
+              "value": "home",
+              "label": {
+                "en": "Home",
+                "fr": "Accueil",
+                "de": "Home",
+                "es": "Inicio"
+              }
+            },
+            {
+              "value": "menu",
+              "label": {
+                "en": "Menu",
+                "fr": "Menu",
+                "de": "Menü",
+                "es": "Menú"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "play",
+              "label": {
+                "en": "Play",
+                "fr": "Lecture",
+                "de": "Abspielen",
+                "es": "Reproducir"
+              }
+            },
+            {
+              "value": "pause",
+              "label": {
+                "en": "Pause",
+                "fr": "Pause",
+                "de": "Pause",
+                "es": "Pausa"
+              }
+            },
+            {
+              "value": "rewind",
+              "label": {
+                "en": "Rewind",
+                "fr": "Retour rapide",
+                "de": "Zurückspulen",
+                "es": "Retroceder"
+              }
+            },
+            {
+              "value": "forward",
+              "label": {
+                "en": "Fast forward",
+                "fr": "Avance rapide",
+                "de": "Vorspulen",
+                "es": "Avanzar"
+              }
+            },
+            {
+              "value": "volume_up",
+              "label": {
+                "en": "Volume +",
+                "fr": "Volume +",
+                "de": "Lauter",
+                "es": "Volumen +"
+              }
+            },
+            {
+              "value": "volume_down",
+              "label": {
+                "en": "Volume −",
+                "fr": "Volume −",
+                "de": "Leiser",
+                "es": "Volumen −"
+              }
+            },
+            {
+              "value": "mute",
+              "label": {
+                "en": "Mute",
+                "fr": "Muet",
+                "de": "Stumm",
+                "es": "Silenciar"
+              }
+            },
+            {
+              "value": "channel_up",
+              "label": {
+                "en": "Channel +",
+                "fr": "Chaîne +",
+                "de": "Kanal +",
+                "es": "Canal +"
+              }
+            },
+            {
+              "value": "channel_down",
+              "label": {
+                "en": "Channel −",
+                "fr": "Chaîne −",
+                "de": "Kanal −",
+                "es": "Canal −"
+              }
+            },
+            {
+              "value": "channel_previous",
+              "label": {
+                "en": "Last channel",
+                "fr": "Chaîne précédente",
+                "de": "Letzter Kanal",
+                "es": "Canal anterior"
+              }
+            },
+            {
+              "value": "input_next",
+              "label": {
+                "en": "Next input",
+                "fr": "Entrée suivante",
+                "de": "Nächster Eingang",
+                "es": "Entrada siguiente"
+              }
+            }
+          ]
+        },
+        {
+          "key": "key_3",
+          "type": "select",
+          "label": {
+            "en": "Button 3",
+            "fr": "Bouton 3",
+            "de": "Taste 3",
+            "es": "Botón 3"
+          },
+          "required": false,
+          "default": "left",
+          "options": [
+            {
+              "value": "up",
+              "label": {
+                "en": "Up",
+                "fr": "Haut",
+                "de": "Hoch",
+                "es": "Arriba"
+              }
+            },
+            {
+              "value": "down",
+              "label": {
+                "en": "Down",
+                "fr": "Bas",
+                "de": "Runter",
+                "es": "Abajo"
+              }
+            },
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "fr": "Gauche",
+                "de": "Links",
+                "es": "Izquierda"
+              }
+            },
+            {
+              "value": "right",
+              "label": {
+                "en": "Right",
+                "fr": "Droite",
+                "de": "Rechts",
+                "es": "Derecha"
+              }
+            },
+            {
+              "value": "ok",
+              "label": {
+                "en": "OK",
+                "fr": "OK",
+                "de": "OK",
+                "es": "OK"
+              }
+            },
+            {
+              "value": "back",
+              "label": {
+                "en": "Back",
+                "fr": "Retour",
+                "de": "Zurück",
+                "es": "Volver"
+              }
+            },
+            {
+              "value": "home",
+              "label": {
+                "en": "Home",
+                "fr": "Accueil",
+                "de": "Home",
+                "es": "Inicio"
+              }
+            },
+            {
+              "value": "menu",
+              "label": {
+                "en": "Menu",
+                "fr": "Menu",
+                "de": "Menü",
+                "es": "Menú"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "play",
+              "label": {
+                "en": "Play",
+                "fr": "Lecture",
+                "de": "Abspielen",
+                "es": "Reproducir"
+              }
+            },
+            {
+              "value": "pause",
+              "label": {
+                "en": "Pause",
+                "fr": "Pause",
+                "de": "Pause",
+                "es": "Pausa"
+              }
+            },
+            {
+              "value": "rewind",
+              "label": {
+                "en": "Rewind",
+                "fr": "Retour rapide",
+                "de": "Zurückspulen",
+                "es": "Retroceder"
+              }
+            },
+            {
+              "value": "forward",
+              "label": {
+                "en": "Fast forward",
+                "fr": "Avance rapide",
+                "de": "Vorspulen",
+                "es": "Avanzar"
+              }
+            },
+            {
+              "value": "volume_up",
+              "label": {
+                "en": "Volume +",
+                "fr": "Volume +",
+                "de": "Lauter",
+                "es": "Volumen +"
+              }
+            },
+            {
+              "value": "volume_down",
+              "label": {
+                "en": "Volume −",
+                "fr": "Volume −",
+                "de": "Leiser",
+                "es": "Volumen −"
+              }
+            },
+            {
+              "value": "mute",
+              "label": {
+                "en": "Mute",
+                "fr": "Muet",
+                "de": "Stumm",
+                "es": "Silenciar"
+              }
+            },
+            {
+              "value": "channel_up",
+              "label": {
+                "en": "Channel +",
+                "fr": "Chaîne +",
+                "de": "Kanal +",
+                "es": "Canal +"
+              }
+            },
+            {
+              "value": "channel_down",
+              "label": {
+                "en": "Channel −",
+                "fr": "Chaîne −",
+                "de": "Kanal −",
+                "es": "Canal −"
+              }
+            },
+            {
+              "value": "channel_previous",
+              "label": {
+                "en": "Last channel",
+                "fr": "Chaîne précédente",
+                "de": "Letzter Kanal",
+                "es": "Canal anterior"
+              }
+            },
+            {
+              "value": "input_next",
+              "label": {
+                "en": "Next input",
+                "fr": "Entrée suivante",
+                "de": "Nächster Eingang",
+                "es": "Entrada siguiente"
+              }
+            }
+          ]
+        },
+        {
+          "key": "key_4",
+          "type": "select",
+          "label": {
+            "en": "Button 4",
+            "fr": "Bouton 4",
+            "de": "Taste 4",
+            "es": "Botón 4"
+          },
+          "required": false,
+          "default": "right",
+          "options": [
+            {
+              "value": "up",
+              "label": {
+                "en": "Up",
+                "fr": "Haut",
+                "de": "Hoch",
+                "es": "Arriba"
+              }
+            },
+            {
+              "value": "down",
+              "label": {
+                "en": "Down",
+                "fr": "Bas",
+                "de": "Runter",
+                "es": "Abajo"
+              }
+            },
+            {
+              "value": "left",
+              "label": {
+                "en": "Left",
+                "fr": "Gauche",
+                "de": "Links",
+                "es": "Izquierda"
+              }
+            },
+            {
+              "value": "right",
+              "label": {
+                "en": "Right",
+                "fr": "Droite",
+                "de": "Rechts",
+                "es": "Derecha"
+              }
+            },
+            {
+              "value": "ok",
+              "label": {
+                "en": "OK",
+                "fr": "OK",
+                "de": "OK",
+                "es": "OK"
+              }
+            },
+            {
+              "value": "back",
+              "label": {
+                "en": "Back",
+                "fr": "Retour",
+                "de": "Zurück",
+                "es": "Volver"
+              }
+            },
+            {
+              "value": "home",
+              "label": {
+                "en": "Home",
+                "fr": "Accueil",
+                "de": "Home",
+                "es": "Inicio"
+              }
+            },
+            {
+              "value": "menu",
+              "label": {
+                "en": "Menu",
+                "fr": "Menu",
+                "de": "Menü",
+                "es": "Menú"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "play",
+              "label": {
+                "en": "Play",
+                "fr": "Lecture",
+                "de": "Abspielen",
+                "es": "Reproducir"
+              }
+            },
+            {
+              "value": "pause",
+              "label": {
+                "en": "Pause",
+                "fr": "Pause",
+                "de": "Pause",
+                "es": "Pausa"
+              }
+            },
+            {
+              "value": "rewind",
+              "label": {
+                "en": "Rewind",
+                "fr": "Retour rapide",
+                "de": "Zurückspulen",
+                "es": "Retroceder"
+              }
+            },
+            {
+              "value": "forward",
+              "label": {
+                "en": "Fast forward",
+                "fr": "Avance rapide",
+                "de": "Vorspulen",
+                "es": "Avanzar"
+              }
+            },
+            {
+              "value": "volume_up",
+              "label": {
+                "en": "Volume +",
+                "fr": "Volume +",
+                "de": "Lauter",
+                "es": "Volumen +"
+              }
+            },
+            {
+              "value": "volume_down",
+              "label": {
+                "en": "Volume −",
+                "fr": "Volume −",
+                "de": "Leiser",
+                "es": "Volumen −"
+              }
+            },
+            {
+              "value": "mute",
+              "label": {
+                "en": "Mute",
+                "fr": "Muet",
+                "de": "Stumm",
+                "es": "Silenciar"
+              }
+            },
+            {
+              "value": "channel_up",
+              "label": {
+                "en": "Channel +",
+                "fr": "Chaîne +",
+                "de": "Kanal +",
+                "es": "Canal +"
+              }
+            },
+            {
+              "value": "channel_down",
+              "label": {
+                "en": "Channel −",
+                "fr": "Chaîne −",
+                "de": "Kanal −",
+                "es": "Canal −"
+              }
+            },
+            {
+              "value": "channel_previous",
+              "label": {
+                "en": "Last channel",
+                "fr": "Chaîne précédente",
+                "de": "Letzter Kanal",
+                "es": "Canal anterior"
+              }
+            },
+            {
+              "value": "input_next",
+              "label": {
+                "en": "Next input",
+                "fr": "Entrée suivante",
+                "de": "Nächster Eingang",
+                "es": "Entrada siguiente"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

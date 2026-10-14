@@ -1,67 +1,192 @@
-# Template de démonstration
+# VIZIO SmartCast
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Pilotez vos **téléviseurs et barres de son VIZIO SmartCast** depuis Gladys, sur votre réseau local :
+marche, volume, sourdine, entrées, applications, modes d'image et de son, touches de télécommande.
+Ni cloud ni compte VIZIO : Gladys parle directement à l'API SmartCast de chaque appareil (celle
+qu'utilise l'application mobile VIZIO).
 
-## Ce que vous obtenez
+> Développée sans le matériel : vos retours sont les bienvenus. Cette intégration a été écrite à
+> partir du protocole documenté et de vraies réponses de téléviseurs VIZIO publiées par des projets
+> libres, sans essai sur un vrai téléviseur à ce jour. Dites-nous ce qui marche et ce qui ne marche
+> pas : [github.com/guim31/gladys-vizio/issues](https://github.com/guim31/gladys-vizio/issues).
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Cette intégration n'est pas affiliée à VIZIO, Inc. VIZIO et SmartCast sont des marques de leurs
+propriétaires.
 
-## Configuration
+## Prérequis
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+- Un téléviseur VIZIO **SmartCast** (2016 et après) ou une barre de son, sur le même réseau local
+  que Gladys.
+- Gladys Assistant **5.1.0** ou plus récent.
+- Sur le téléviseur, réglez le mode d'alimentation sur **Démarrage rapide** (« Quick Start » ; Menu,
+  Système, Mode d'alimentation). En **mode Éco**, un téléviseur en veille coupe son réseau : Gladys
+  ne le voit plus et ne peut pas l'allumer, tant qu'il n'est pas allumé avec sa télécommande.
+  L'intégration n'utilise pas le Wake-on-LAN : VIZIO ne le documente pas, et aucun retour ne montre
+  qu'il réveille un téléviseur en mode Éco.
+- Donnez une adresse IP fixe à chaque appareil dans votre box ou routeur (recommandé).
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+## Installation et configuration
 
-## Actions
+1. Dans Gladys, ouvrez **Intégrations**, puis **Installer depuis GitHub**, et installez
+   `guim31/gladys-vizio`.
+2. Allumez vos téléviseurs et barres de son. L'intégration les cherche sur le réseau (mDNS, via
+   Gladys) à son démarrage et à chaque **Recherche** dans l'onglet Découverte.
+3. Un appareil introuvable (autre réseau, mDNS bloqué) : saisissez son adresse IP dans **Adresses
+   (facultatif)**, plusieurs séparées par des virgules (`192.168.1.30, 192.168.1.31`).
+4. Les barres de son n'ont pas besoin d'appairage : elles apparaissent tout de suite dans l'onglet
+   Découverte. Les téléviseurs doivent d'abord être appairés (ci-dessous).
+5. Dans l'onglet **Découverte**, ajoutez les appareils à Gladys.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+Options :
 
-## Scènes
+- **Applications favorites** : les applications proposées dans la liste **Application** de chaque
+  téléviseur et, par défaut, dans le widget de raccourcis, par leur nom SmartCast (`Netflix,
+YouTube, Prime Video, Disney+, Hulu, Apple TV+` par défaut, 12 au plus). Les noms sont ceux du
+  catalogue SmartCast de pyvizio (150 applications : Netflix, Prime Video, Disney+, Hulu, YouTube,
+  YouTube TV, Max sous le nom « HBO Max », Peacock, Paramount+, Plex, Pluto TV, Tubi, Apple TV+…) ;
+  un nom absent du catalogue est signalé dans l'état de l'intégration.
+- **Intervalle de rafraîchissement** : 10, 15 ou 30 secondes.
+- **Pas du volume** : variation de chaque appui sur Volume + et Volume −.
+- **Langue des noms de fonctionnalités** : les noms donnés aux fonctionnalités à l'ajout d'un
+  appareil (ils restent tels quels ensuite), et les textes des listes et des événements de scène.
+  Français par défaut.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+### Appairer un téléviseur
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+Un téléviseur n'obéit qu'à un client qu'il connaît : il affiche un code PIN, et donne un jeton une
+fois le code saisi. L'intégration garde le jeton dans son stockage privé (`/data`), jamais dans les
+logs.
 
-## Tableau de bord
+1. Allumez le téléviseur.
+2. Dans la configuration de l'intégration, lancez **Démarrer l'appairage**. Le téléviseur affiche
+   un code PIN à 4 chiffres. S'il y a plusieurs téléviseurs à appairer, saisissez l'adresse de
+   celui à appairer dans le champ de l'action.
+3. Saisissez le code dans le champ de **Saisir le code PIN** et lancez l'action, dans les 5 minutes.
+4. Le téléviseur apparaît dans l'onglet Découverte : ajoutez-le.
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+Le téléviseur compte alors Gladys parmi ses appareils appairés (sous le nom « Gladys »). Un code
+erroné peut être saisi à nouveau tant que le téléviseur l'affiche. Appairer à nouveau remplace le
+jeton. Après une réinitialisation du téléviseur, appairez-le à nouveau.
+
+**Tester la connexion** cherche les appareils, lit chacun d'eux et indique pour chacun ce qu'il
+trouve : modèle, allumé ou en veille, mode Éco, appairage nécessaire, adresse qui ne répond pas.
+
+## Appareils et fonctionnalités
+
+Un appareil par téléviseur ou barre de son, identifié par son numéro de série : un changement
+d'adresse IP (DHCP) est suivi, l'appareil reste le même.
+
+### Téléviseur
+
+| Fonctionnalité                      | Ce qu'elle fait                                                                                    |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Marche / arrêt                      | Allumé ou en veille ; allume ou éteint le téléviseur (Démarrage rapide nécessaire pour l'allumer). |
+| Volume                              | 0 à 100, comme sur le téléviseur.                                                                  |
+| Diminuer / Augmenter le volume      | Boutons, du pas de volume de la configuration.                                                     |
+| Muet                                | Bouton : coupe ou rétablit le son (l'état est montré par le widget et En cours).                   |
+| Entrée                              | Liste des entrées du téléviseur, avec les noms réglés sur le téléviseur (SmartCast, HDMI-1, PS5…). |
+| Application                         | Accueil SmartCast, les applications favorites, et « Autre » (une entrée, ou une appli hors liste). |
+| En cours                            | Texte : l'application (Netflix…), l'entrée, ou Éteint.                                             |
+| Mode d'image                        | Liste des modes d'image du téléviseur (Vivid, Calibrated, Game…), quand il en a.                   |
+| Chaîne précédente / Chaîne suivante | Boutons, sur les téléviseurs avec tuner.                                                           |
+
+### Barre de son
+
+Marche / arrêt, Volume (0 à 31 sur la plupart des barres de son, lu sur l'appareil), Diminuer le
+volume, Augmenter le volume, Muet, Entrée (HDMI, Bluetooth, optique…), En cours (l'entrée), et
+**Mode sonore** (l'égaliseur de la barre de son : Music, Movie…) quand elle en a un.
+
+Les noms des fonctionnalités suivent l'option **Langue des noms de fonctionnalités** : Marche /
+arrêt, Volume, Diminuer le volume, Augmenter le volume, Muet, Entrée, Application, En cours, Mode
+d'image, Mode sonore, Chaîne précédente, Chaîne suivante.
+
+## Widgets du tableau de bord
+
+- **Télécommande VIZIO** : état de l'appareil, ce qui est en cours, volume, et les boutons marche,
+  Volume −, Volume + et Muet.
+- **Raccourcis VIZIO** : quatre applications ou entrées favorites, ouvertes d'un appui ; le
+  téléviseur s'allume d'abord si besoin. Saisissez leurs noms dans les réglages du widget
+  (`Netflix`, `HDMI-1`, `PS5`) ; tous vides : les applications favorites de la configuration (les
+  entrées sur une barre de son). Celle au premier plan porte une coche.
+- **Touches VIZIO** : quatre touches de télécommande au choix (flèches par défaut ; ajoutez un
+  second widget pour OK, Retour, Accueil, Menu…). Une barre de son n'en a que quelques-unes.
+
+Chaque widget suit un appareil, choisi dans ses réglages (le premier s'il est vide).
+
+## Déclencheur de scène
+
+**TV : application ou entrée changée** se déclenche quand quelque chose de nouveau passe au premier
+plan, allumage compris : une application (Netflix, YouTube…) ou une entrée (une console en HDMI).
+Filtres : l'appareil, le type (application ou entrée) et le nom, exactement comme l'affiche la
+fonctionnalité **En cours** (`Netflix`, `HDMI-1`, `PS5`). Il est vu dans l'intervalle de
+rafraîchissement. Variables : le nom de l'appareil, le type (`app` ou `input`) et le nom.
+
+L'allumage et l'extinction n'ont pas besoin de déclencheur : utilisez l'état de la fonctionnalité
+**Marche / arrêt**.
+
+## Actions de scène
+
+- **Ouvrir une application sur le téléviseur** : par son nom SmartCast (`Netflix`, `Prime Video`,
+  « disney plus » marche aussi). Allume d'abord le téléviseur si besoin. Renvoie le nom de
+  l'application ouverte.
+- **Choisir une entrée** : par son nom ou le nom réglé sur le téléviseur (`HDMI-1`, `PS5`). Allume
+  d'abord l'appareil si besoin.
+- **Envoyer une touche de télécommande** : flèches, OK, Retour, Accueil, Menu, Info, Lecture,
+  Pause, Retour rapide, Avance rapide, Volume, Muet, Chaîne, Chaîne précédente, Entrée suivante ;
+  répétée jusqu'à 10 fois.
+
+## Exemples de scènes
+
+- **Soirée film** : déclencheur **TV : application ou entrée changée**, type Application, nom
+  `Netflix` → baisser les lumières du salon à 20 % et fermer les volets.
+- **Partie de console** : déclencheur **TV : application ou entrée changée**, type Entrée, nom
+  `PS5` → passer le mode d'image sur Game (fonctionnalité Mode d'image) et allumer la lumière
+  d'ambiance.
+- **Bonne nuit** : à 23 h 30, si **Marche / arrêt** du téléviseur est allumé → envoyer une
+  notification, puis éteindre le téléviseur 15 minutes plus tard.
+- **Infos du matin** : à 7 h en semaine → **Ouvrir une application sur le téléviseur** `YouTube TV`,
+  puis régler le volume à 15.
+
+## Rafraîchissement et réseau
+
+L'intégration lit chaque appareil avec son propre minuteur, à l'intervalle choisi : une requête
+pour l'état d'un téléviseur en veille ; allumé, deux à quatre requêtes (marche, entrée et
+application, réglages du son, mode d'image). Un appareil qui ne répond pas (mode Éco) coûte une
+tentative de connexion par intervalle, et n'est pas signalé en erreur. Les états ne sont envoyés à
+Gladys que s'ils changent, et à nouveau toutes les 6 heures. Les entrées sont relues toutes les 30
+minutes, les bornes et listes des réglages une fois par jour.
+
+L'API SmartCast est locale, sans quota ; son serveur est petit, aussi l'intégration n'envoie qu'une
+requête à la fois à chaque appareil. Tout reste sur votre réseau : HTTPS sur le port 7345 ou 9000,
+avec le certificat auto-signé de l'appareil.
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **Aucun appareil trouvé** : l'appareil doit être allumé (ou en veille Démarrage rapide) et sur le
+  même réseau que Gladys. Sinon, saisissez son adresse dans **Adresses (facultatif)**, puis lancez
+  **Tester la connexion**.
+- **« Appairage nécessaire »** dans l'état de l'intégration : lancez **Démarrer l'appairage**,
+  téléviseur allumé.
+- **« Le téléviseur n'accepte plus Gladys »** : le téléviseur a oublié le jeton (réinitialisation,
+  mise à jour) : appairez-le à nouveau.
+- **Le téléviseur ne s'allume pas depuis Gladys** : il est en mode Éco ; choisissez Démarrage rapide
+  sur le téléviseur.
+- **Code PIN erroné** : saisissez à nouveau le code affiché, ou relancez **Démarrer l'appairage**
+  pour en obtenir un nouveau. Après trop d'essais, le téléviseur refuse l'appairage un moment.
+- **Une application ne s'ouvre pas, ou s'affiche « Application inconnue »** : elle n'est pas dans le
+  catalogue SmartCast, ou son identifiant a changé. Donnez-nous son nom dans une issue.
+- **Logs détaillés** : démarrez le conteneur avec `LOG_LEVEL=debug`.
+
+## Limites
+
+- Développée sans le matériel : les requêtes suivent pyvizio et vizaio, et les captures d'un vrai
+  téléviseur qu'ils ont publiées, mais cette intégration n'a pas encore tourné face à un vrai
+  appareil VIZIO.
+- Un téléviseur en mode Éco ne peut être ni vu ni allumé pendant sa veille.
+- La liste des applications est le catalogue SmartCast de pyvizio : un téléviseur n'a pas de
+  requête qui liste ses applications installées.
+- L'état de la sourdine est montré, mais Muet est un bouton bascule (les téléviseurs SmartCast
+  traitent toute touche de sourdine comme une bascule).
+- Le mode d'image et le mode sonore dépendent du micrologiciel : ils n'apparaissent que si
+  l'appareil les propose.
+- VIZIO ne vend ses appareils SmartCast qu'en Amérique du Nord.
