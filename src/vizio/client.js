@@ -336,11 +336,6 @@ export class SmartCastClient {
     });
   }
 
-  /** The cnames of a settings group that carry a value (`audio`, `picture`). */
-  async settingNames(group) {
-    return settingNames(await this.call('GET', `/menu_native/dynamic/${this.root}/${group}`));
-  }
-
   /**
    * The values of a settings group in one request (`audio`: volume, mute,
    * eq...), by cname. Some firmware leaves `volume` out of the group while

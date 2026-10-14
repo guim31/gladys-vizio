@@ -31,15 +31,25 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+index.js                          SDK wiring only: registerHandlers, shutdown, connect()
+src/app.js                        every SDK handler, wired to the hub (the tests use it too)
+src/hub.js                        VizioHub: records by serial, discovery, poll timer, states, scene event, commands, pairing
+src/devices.js                    the Gladys device of a TV or sound bar: features, names, options, state values
+src/vizio/client.js               SmartCast API client: ports, AUTH header, error kinds, HASHVAL writes, pairing
+src/vizio/http.js                 the only network code (node:https, self-signed certificates), a test seam
+src/vizio/model.js                readers of the SmartCast answers (envelope, device info, inputs, state_extended)
+src/vizio/apps.js, apps.json      the SmartCast app catalog of pyvizio (MIT) and its matching rules
+src/vizio/keys.js                 remote keys: our stable names, SmartCast codes, labels, icons
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+src/widgets.js                    dashboard widgets: remote, shortcuts, keys (manifest `widgets`)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+src/store.js                      /data/vizio-state.json: client id, tokens, what each device said
+src/texts.js                      messages in four languages (status, errors, pairing, reports)
+scripts/probe.mjs                 read-only check of a real device with the integration's client
+gladys-assistant-integration.json manifest: name, config_schema, actions, scenes, widgets...
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys, same sections
+test/helpers/fakeVizio.js         in-memory TV and sound bar (real captures), fake network
+test/helpers/vizioServer.js       the fake TV over HTTPS with a self-signed certificate
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
@@ -70,8 +80,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German and Spanish: action
+  messages, manifest texts, feature names, and `docs/{en,fr,de,es}.md`, kept in
+  sync (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +244,63 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## VIZIO SmartCast (propre à cette intégration)
+
+**API** (pyvizio et vizaio, MIT ; captures d'un vrai téléviseur dans `test/fixtures/vizio/`) :
+
+- HTTPS, certificat auto-signé, port **7345** (téléviseurs récents) ou **9000** (barres de son,
+  anciens modèles) : on essaie 7345 puis 9000 sur `/state/device/deviceinfo`, qui répond **sans
+  jeton** et donne numéro de série, modèle, nom, `SETTINGS_ROOT` (`tv_settings` ou
+  `audio_settings` : téléviseur ou barre de son), `SCPL_CAPABILITIES.state_extended`.
+  L'ancien micrologiciel n'y met pas le numéro de série : il est lu dans
+  `…/system/system_information/{tv,speaker}_information/serial_number`.
+- Jeton dans un en-tête **`AUTH`** (pas `Authorization`). Jeton absent ou oublié : **HTTP 403 nu**,
+  sans enveloppe. Les barres de son n'en demandent pas.
+- Le statut est dans l'enveloppe, avec un HTTP 200 : `URI_NOT_FOUND` (point d'accès absent de ce
+  micrologiciel), `HASHVAL_ERROR`/`INVALID_PARAMETER` (écriture refusée), `PAIRING_DENIED` (mauvais
+  PIN), `BLOCKED`/`MAX_CHALLENGES_EXCEEDED` (trop d'essais). Les clés arrivent dans n'importe quelle
+  casse : tout est mis en minuscules à la lecture.
+- Appairage : `PUT /pairing/start` `{DEVICE_ID, DEVICE_NAME}` → `CHALLENGE_TYPE` +
+  `PAIRING_REQ_TOKEN` ; `PUT /pairing/pair` avec le PIN → `AUTH_TOKEN`. Pas de durée de vie ;
+  réappairer le même `DEVICE_ID` remplace le jeton. Une session non conclue laisse le téléviseur en
+  mode appairage : `PUT /pairing/cancel` après 5 min et à l'arrêt.
+- `/state_extended` (récent) donne marche, entrée et application en une requête, **sans
+  enveloppe** ; ancien micrologiciel : `URI_NOT_FOUND`, on retombe sur `power_mode`,
+  `current_input`, `app/current`.
+- Écrire un réglage exige le `HASHVAL` lu juste avant (il change à chaque écriture) ; un
+  `HASHVAL_ERROR` se rattrape par une relecture. Changer d'entrée : la **cname** (`hdmi2`) sur le
+  micrologiciel récent, le nom (meta) sur l'ancien ; demander l'entrée déjà active donne `FAILURE`.
+- `current_input` rend `SMARTCAST` pour l'entrée cast (son nom meta) et `HDMI-2` pour une HDMI,
+  même renommée `PS5` : rapprocher par cname, nom et nom meta.
+- Applications : aucune requête ne liste les applis installées ; lancement et appli en cours passent
+  par le catalogue pyvizio (`APP_ID` + `NAME_SPACE`), `NAME_SPACE` 2 et 4 équivalents, 0 = Cast.
+- Le groupe `audio` omet parfois `volume` selon le micrologiciel (home-assistant/core#179254) :
+  relire la feuille `audio/volume`. Toutes les touches de sourdine basculent sur un téléviseur.
+- Mode **Éco** : en veille le téléviseur coupe son réseau (injoignable, publié éteint, transport
+  `unreachable`, pas d'erreur). Pas de Wake-on-LAN connu : seul le mode Démarrage rapide permet de
+  l'allumer depuis Gladys. `POWER_MODE` de `/state_extended` dit « Eco Mode » : signalé par « Tester
+  la connexion ».
+
+**Choix de conception**
+
+- Un téléviseur n'est publié qu'une fois appairé (sans jeton, il ne dit que son nom) ; une barre de
+  son tout de suite. Les actions d'appairage prennent une adresse facultative : sans elle, le seul
+  téléviseur en attente.
+- `should_poll: true` + 30 s pour un cœur qui sonderait, mais le minuteur interne lit tout
+  (Gladys#3198) ; `onPoll` saute un appareil lu depuis moins de 0,9 période.
+- États par `publishChangedStates` (déduplication du SDK, battement de 6 h) ; le SDK oublie lui-même
+  les états d'un appareil créé.
+- Un déclencheur « application ou entrée changée » : l'état texte d'une fonctionnalité ne peut pas
+  déclencher une scène sur une valeur (le cœur compare des nombres), d'où sa valeur ajoutée. Pas de
+  déclencheur marche/arrêt : l'état `television/binary` suffit.
+- La sourdine est un bouton `television/volume-mute` (bascule) ; son état est montré par le widget
+  et « En cours ».
+
+**Pièges rencontrés ici**
+
+- L'outil d'écriture a converti un `\u0300-\u036f` de regex en caractères combinants littéraux :
+  utiliser `\p{M}` avec le drapeau `u`.
+- Faux Gladys : le contenu d'un widget est dans `ack.data.content`, le message d'une action de
+  widget ou de configuration dans `ack.data.message`.
+- La clé TLS de `test/fixtures/tls/` sert aux tests seulement (faux téléviseur HTTPS).

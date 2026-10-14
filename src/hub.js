@@ -326,13 +326,14 @@ export class VizioHub {
         candidates.set(host, { host, port, source });
       }
     };
+    // Typed addresses first: their problems are reported, mDNS ones are not.
+    for (const typed of this.config.hosts) {
+      add(typed.host, typed.port, 'config');
+    }
     if (scan) {
       for (const service of await this.scanMdns({ quiet })) {
         add(service.host, service.port, 'mdns');
       }
-    }
-    for (const typed of this.config.hosts) {
-      add(typed.host, typed.port, 'config');
     }
     // Addresses typed earlier and removed since are forgotten.
     for (const host of [...this.unidentified.keys()]) {
