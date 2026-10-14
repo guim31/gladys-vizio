@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-14
+
 ### Added
 
 - VIZIO SmartCast TVs and sound bars, on the local network: found by mDNS through Gladys or at
@@ -25,4 +27,5 @@ the notes of the version's GitHub Release.
 - "Test the connection" action, and a status that says which TV needs pairing or does not answer.
 - Texts and documentation in English, French, German and Spanish.
 
-[Unreleased]: https://github.com/guim31/gladys-vizio/commits/main
+[Unreleased]: https://github.com/guim31/gladys-vizio/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/guim31/gladys-vizio/releases/tag/v1.0.1
